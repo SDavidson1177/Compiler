@@ -15,6 +15,8 @@
 
 std::vector<std::map<std::string, Symbol>*> cur_sym_table;
 std::map<std::string, std::vector<Procedure*>> proc_map;
+int VAR_STACK_OFFSET = 0;
+int* STACK_MAX = nullptr;
 
 /* Get the next token for the grammar */
 std::string next(std::vector<std::pair<std::string, std::string>>& global_tokens,
@@ -203,6 +205,7 @@ bool Params::noParams(){
 err_code Procedure::parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
 	cur_sym_table.emplace_back(this->sym_table);
+	VAR_STACK_OFFSET = 0;
 
 	next(global_tokens, it, "INT");
 	this->name = next(global_tokens, it, "ID");
@@ -257,6 +260,7 @@ void Procedure::print(std::ostream& out, std::string prefix){
 
 Main::Main(){
 	this->sym_table = new std::map<std::string, Symbol>();
+	this->stack_max = 0;
 	this->id = MAIN;
 	this->value = "";
 	this->version = 0;
@@ -272,6 +276,8 @@ Main::~Main(){
 
 err_code Main::parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
+	VAR_STACK_OFFSET = 0;
+	STACK_MAX = &(this->stack_max);
 	cur_sym_table.emplace_back(this->sym_table);
 
 	next(global_tokens, it, "INT");
@@ -287,6 +293,17 @@ err_code Main::parseTokens(std::vector<std::pair<std::string, std::string>>& glo
 	Dcl* dcl_2 = new Dcl();
 	this->grammars.emplace_back(dcl_2);
 	dcl_2->parseTokens(global_tokens, it);
+
+	// Set the version of our main function
+	// Default version 0 for both arguments being of time INT
+
+	if (dcl_1->getType() == INT && dcl_2->getType() == INT){
+		// default
+	}else if(dcl_1->getType() == INT && dcl_2->getType() == INT_STAR){
+		this->version = 1;
+	}else{
+		throw thrown_e(CONTEXT_ERROR, " Invalid types for arguments to main function. Expect (int, int) or (int, int*)");
+	}
 
 	next(global_tokens, it, "RPAREN");
 	next(global_tokens, it, "LBRACE");
@@ -305,6 +322,7 @@ err_code Main::parseTokens(std::vector<std::pair<std::string, std::string>>& glo
 	next(global_tokens, it, "RBRACE");
 
 	cur_sym_table.pop_back();
+	STACK_MAX = nullptr;
 
 	return OK;
 }
@@ -451,6 +469,13 @@ err_code Dcl::parseTokens(std::vector<std::pair<std::string, std::string>>& glob
 	if((*inner_scope)->find(this->value) == (*inner_scope)->end()){
 		auto sym = Symbol(this->value);
 		sym.type = type->getType();
+		sym.offset = VAR_STACK_OFFSET;
+		VAR_STACK_OFFSET -= SIZE_OF_INT;
+
+		if(this->type == INT){
+			*STACK_MAX += SIZE_OF_INT;
+		}
+
 		(*inner_scope)->emplace(std::make_pair(this->value, sym));
 	}else{
 		throw thrown_e(CONTEXT_ERROR, " Multiple declaration of variable \'" + this->value + "\'.");
@@ -535,13 +560,14 @@ err_code Dcls::parseTokens(std::vector<std::pair<std::string, std::string>>& glo
 
 
 	if(it->second == "INT"){
-		next(global_tokens, it, "INT");
+		this->value = next(global_tokens, it, "INT");
 
 		if (this->getType() != INT){
 			throw thrown_e(CONTEXT_ERROR, " Type missmatch");
 		}
 	}else{
 		next(global_tokens, it, "NULL");
+		this->value = "0";
 
 		if (this->getType() != INT_STAR){
 			throw thrown_e(CONTEXT_ERROR, " Type missmatch");
@@ -581,7 +607,7 @@ err_code Lvalue::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
 
 	if(it->second == "ID"){
-		std::string var = next(global_tokens, it, "ID");
+		std::string var = this->value = next(global_tokens, it, "ID");
 
 		auto check_sym_table = cur_sym_table.rbegin();
 		while (check_sym_table != cur_sym_table.rend()){
@@ -600,6 +626,7 @@ err_code Lvalue::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		}
 
 	}else if(it->second == "STAR"){
+		this->version = 1;
 		next(global_tokens, it, "STAR");
 
 		Factor* factor = new Factor();
@@ -608,6 +635,7 @@ err_code Lvalue::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 		this->type = INT;
 	}else if(it->second == "LPAREN"){
+		this->version = 2;
 		next(global_tokens, it, "LPAREN");
 
 		Lvalue* lvalue = new Lvalue();
@@ -673,12 +701,15 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		}
 
 	}else if(it->second == "INT"){
+		this->version = 1;
 		this->value = next(global_tokens, it, "INT");
 		this->type = INT;
 	}else if(it->second == "NULL"){
+		this->version = 2;
 		this->value = next(global_tokens, it, "NULL");
 		this->type = INT_STAR;
 	}else if(it->second == "LPAREN"){
+		this->version = 3;
 		next(global_tokens, it, "LPAREN");
 
 		Expr* expr = new Expr();
@@ -689,6 +720,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 		this->type = expr->getType();
 	}else if(it->second == "AMP"){
+		this->version = 4;
 		next(global_tokens, it, "AMP");
 
 		Lvalue* lvalue = new Lvalue();
@@ -697,6 +729,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 		this->type = INT_STAR;
 	}else if(it->second == "STAR"){
+		this->version = 5;
 		next(global_tokens, it, "STAR");
 
 		Factor* factor = new Factor();
@@ -705,6 +738,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 		this->type = INT;
 	}else if(it->second == "NEW"){
+		this->version = 6;
 		next(global_tokens, it, "INT");
 		next(global_tokens, it, "LBRACK");
 
@@ -716,6 +750,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 		this->type = INT_STAR;
 	}else if(it->second == "ID"){
+		this->version = 7;
 		std::string proc_name = next(global_tokens, it, "ID");
 
 		auto procedure = proc_map.find(proc_name);

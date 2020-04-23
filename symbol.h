@@ -14,9 +14,10 @@
 typedef struct Symbol{
 	std::string id = "";
 	enum TYPE type = NONE;
+	int offset;
 
 	Symbol(std::string id_p):id(id_p) {
-
+		this->offset = 0;
 	}
 }Symbol;
 

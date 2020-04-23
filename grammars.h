@@ -14,6 +14,8 @@
 #include <iostream>
 #include "errorcodes.h"
 
+const int SIZE_OF_INT = 4;
+
 struct Symbol;
 
 class Arglist;
@@ -60,6 +62,8 @@ public:
 
 	virtual err_code parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 			std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) = 0;
+	virtual void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+			std::vector<std::string>& text, int type = 0);
 };
 
 class Typed : public Grammar{
@@ -103,6 +107,7 @@ public:
 class Main : public Grammar{
 	std::map<std::string, Symbol>* sym_table;
 public:
+	int stack_max;
 
 	Main();
 	~Main();
@@ -110,6 +115,8 @@ public:
 	err_code parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 				std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+			std::vector<std::string>& text, int type = 0) override;
 };
 
 class Params : public Grammar{
@@ -149,6 +156,8 @@ public:
 				std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
 	static bool first(std::string check);
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+							std::vector<std::string>& text, int type = 0) override;
 };
 
 class Type : public Typed{
@@ -173,6 +182,8 @@ public:
 				std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
 	static bool first(std::string check);
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+							std::vector<std::string>& text, int type = 0) override;
 };
 
 class Lvalue : public Typed{
@@ -185,6 +196,8 @@ public:
 				std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
 	static bool first(std::string check);
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+				std::vector<std::string>& text, int type = 0) override;
 };
 
 class Factor : public Typed{
@@ -196,6 +209,8 @@ public:
 	err_code parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 				std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+			std::vector<std::string>& text, int type = 0) override;
 };
 
 class Expr : public Typed{
@@ -211,6 +226,8 @@ public:
 			std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
 	static bool first(std::string check);
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+						std::vector<std::string>& text, int type = 0) override;
 };
 
 class Term : public Typed{
@@ -226,6 +243,8 @@ public:
 			std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
 //	static bool first(std::string check);
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+						std::vector<std::string>& text, int type = 0) override;
 };
 
 class Arglist : public Grammar{
@@ -266,6 +285,8 @@ public:
 			std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
 	static bool first(std::string check);
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+					std::vector<std::string>& text, int type = 0) override;
 };
 
 class Body : public Grammar{
@@ -279,4 +300,7 @@ public:
 	void print(std::ostream& out, std::string prefix) override;
 //	static bool first(std::string check);
 };
+
+extern std::vector<std::map<std::string, Symbol>*> cur_sym_table;
+extern std::map<std::string, std::vector<Procedure*>> proc_map;
 #endif /* GRAMMARS_H_ */

@@ -1,10 +1,14 @@
-CXX=gcc
-CXXFLAGS=-std=c++14
-DEPS = 
-OBJ = start.o
+CXX = g++
+CXXFLAGS = -std=c++14 -Wall -Werror -g -MMD
+EXEC = lang
+OBJECTS = start.o tokens.o parser.o grammars.o symbol.o generate.o startup.o
+DEPENDS = ${OBJECTS:.o=.d}
 
-%.o: %.c $(DEPS)
-	$(CXX) -c -o $@ $< $(CXXFLAGS)
+${EXEC}: ${OBJECTS}
+	${CXX} ${CXXFLAGS} ${OBJECTS} -o ${EXEC}
 
-all: $(OBJ)
-	$(CXX) -o lang $^ $(CXXFLAGS)
+-include ${DEPENDS}
+
+clean:
+	rm ${OBJECTS} ${EXEC} ${DEPENDS}
+.PHONY: clean

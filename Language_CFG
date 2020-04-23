@@ -31,7 +31,7 @@ test -> expr GT expr
 expr -> term 
 expr -> expr PLUS term 
 expr -> expr MINUS term 
-term -> factor 
+term -> factor
 term -> term STAR factor 
 term -> term SLASH factor 
 term -> term PCT factor 
