@@ -71,9 +71,9 @@ int startup(){
 	KEY_TOKENS.emplace("%", "PCT");
 
 	/* Initialize TOKEN_NEEDS_SPACE */
-	TOKEN_NEEDS_SPACE.emplace("if", "IF");
+//	TOKEN_NEEDS_SPACE.emplace("if", "IF");
 	TOKEN_NEEDS_SPACE.emplace("elif", "ELIF");
-	TOKEN_NEEDS_SPACE.emplace("else", "ELSE");
+//	TOKEN_NEEDS_SPACE.emplace("else", "ELSE");
 	TOKEN_NEEDS_SPACE.emplace("while", "WHILE");
 	TOKEN_NEEDS_SPACE.emplace("int", "INT");
 	TOKEN_NEEDS_SPACE.emplace("println", "PRINTLN");

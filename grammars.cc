@@ -17,6 +17,8 @@ std::vector<std::map<std::string, Symbol>*> cur_sym_table;
 std::map<std::string, std::vector<Procedure*>> proc_map;
 int VAR_STACK_OFFSET = 0;
 int* STACK_MAX = nullptr;
+long IF_COUNT = 0;
+long WHILE_COUNT = 0;
 
 /* Get the next token for the grammar */
 std::string next(std::vector<std::pair<std::string, std::string>>& global_tokens,
@@ -83,6 +85,10 @@ bool Statement::first(std::string check){
 /* Grammar Parent Class */
 GRAMMAR_ID Grammar::getId(){
 	return this->id;
+}
+
+int Grammar::getVersion(){
+	return this->version;
 }
 
 void Grammar::print(std::ostream& out, std::string prefix){
@@ -1070,10 +1076,13 @@ err_code Test::parseTokens(std::vector<std::pair<std::string, std::string>>& glo
 	if(it->second == "EQUALS"){
 		this->op = next(global_tokens, it, "EQUALS");
 	}else if(it->second == "LT"){
+		this->version = 1;
 		this->op = next(global_tokens, it, "LT");
 	}else if(it->second == "GT"){
+		this->version = 2;
 		this->op = next(global_tokens, it, "GT");
 	}else if(it->second == "NEQUALS"){
+		this->version = 3;
 		this->op = next(global_tokens, it, "NEQUALS");
 	}
 
@@ -1121,6 +1130,8 @@ err_code Statement::parseTokens(std::vector<std::pair<std::string, std::string>>
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
 
 	if(it->second == "IF"){
+		this->value = std::to_string(IF_COUNT);
+		IF_COUNT++;
 		this->version = 1;
 		this->sym_table = new std::map<std::string, Symbol>();
 		cur_sym_table.emplace_back(this->sym_table);
@@ -1152,6 +1163,8 @@ err_code Statement::parseTokens(std::vector<std::pair<std::string, std::string>>
 		}
 
 	}else if(it->second == "WHILE"){
+		this->value = std::to_string(WHILE_COUNT);
+		WHILE_COUNT++;
 		this->version = 2;
 		this->sym_table = new std::map<std::string, Symbol>();
 		cur_sym_table.emplace_back(this->sym_table);

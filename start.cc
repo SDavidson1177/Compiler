@@ -25,9 +25,9 @@ int main(int argc, char* argv[]){
 
 	if (argc < 2){
 		tokenize(cin, cout, global_tokens);
-		for (auto it = global_tokens.begin(); it != global_tokens.end(); ++it){
-			cout << "(" << it->first << ", " << it->second << ")\n";
-		}
+//		for (auto it = global_tokens.begin(); it != global_tokens.end(); ++it){
+//			cout << "(" << it->first << ", " << it->second << ")\n";
+//		}
 
 		Procedures proc;
 		auto tokens_it = global_tokens.begin();
@@ -39,7 +39,7 @@ int main(int argc, char* argv[]){
 		}
 
 		/* Print the parse tree */
-		proc.print(cout, "");
+//		proc.print(cout, "");
 
 		/* Generate Assembly instructions */
 		ofstream out_file;

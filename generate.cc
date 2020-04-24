@@ -85,7 +85,6 @@ void Dcls::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 	// Get the current offset
 	dynamic_cast<Dcl*>(this->grammars.at(0))->generate(data, bss, text);
 	text.emplace_back("mov r10, rbx");
-//	std::cout << "Got offset " << CURRENT_OFFSET << std::endl;
 	text.emplace_back("sub r10, " + std::to_string(CURRENT_OFFSET)); // go to the location in the stack
 	text.emplace_back("mov eax, " + this->value);
 	text.emplace_back("mov [r10], eax"); // store the value in memory
@@ -119,19 +118,58 @@ void Statement::generate(std::vector<std::string>& data, std::vector<std::string
 		text.emplace_back("mov r10, rbx");
 		text.emplace_back("sub r10, " + std::to_string(CURRENT_OFFSET)); // go to the location in the stack
 		text.emplace_back("mov [r10], eax"); // store the value in memory
+	}else if(this->version == 1){ // if statement
+		Test* test = dynamic_cast<Test*>(this->grammars.at(0));
+		test->generate(data, bss, text);
+
+		if (test->getVersion() == 0){ // equals
+			text.emplace_back("jne if_" + this->value);
+		}else if (test->getVersion() == 1){ // less than
+			text.emplace_back("jge if_" + this->value);
+		}else if (test->getVersion() == 2){ // greater than
+			text.emplace_back("jle if_" + this->value);
+		}else if (test->getVersion() == 3){ // not equals
+			text.emplace_back("je if_" + this->value);
+		}
+
+		dynamic_cast<Body*>(this->grammars.at(1))->generate(data, bss, text);
+		text.emplace_back("jmp if_end_" + this->value);
+		text.emplace_back("if_" + this->value + ":");// end label
+
+		if(this->grammars.size() == 3){ // there is an else clause
+			dynamic_cast<Body*>(this->grammars.at(2))->generate(data, bss, text);
+		}
+		text.emplace_back("if_end_" + this->value + ":");// end label
+
+	}else if(this->version == 2){ // while loop
+		text.emplace_back("while_" + this->value + ":");
+		Test* test = dynamic_cast<Test*>(this->grammars.at(0));
+		test->generate(data, bss, text);
+
+		if (test->getVersion() == 0){ // equals
+			text.emplace_back("jne while_end_" + this->value);
+		}else if (test->getVersion() == 1){ // less than
+			text.emplace_back("jge while_end_" + this->value);
+		}else if (test->getVersion() == 2){ // greater than
+			text.emplace_back("jle while_end_" + this->value);
+		}else if (test->getVersion() == 3){ // not equals
+			text.emplace_back("je while_end_" + this->value);
+		}
+
+		dynamic_cast<Body*>(this->grammars.at(1))->generate(data, bss, text);
+		text.emplace_back("jmp while_" + this->value);
+		text.emplace_back("while_end_" + this->value + ":");
 	}
 }
 
 void Expr::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
 					std::vector<std::string>& text, int type){
-//	this->print(std::cout, "");
-//	std::cout << this->grammars.size() << std::endl;
 	if (this->grammars.size() == 1){
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
-		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
-		text.emplace_back("mov r8d, eax");
 		dynamic_cast<Term*>(this->grammars.at(1))->generate(data, bss, text);
+		text.emplace_back("mov r8d, eax");
+		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
 
 		if(this->op == "+"){
 			text.emplace_back("add eax, r8d");
@@ -193,6 +231,8 @@ void Factor::generate(std::vector<std::string>& data,
 		text.emplace_back("mov eax, " + this->value);
 	}else if(this->version == 2){
 		text.emplace_back("mov eax, 0");
+	}else if(this->version == 3){
+		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
 	}
 
 }
@@ -210,10 +250,18 @@ void Lvalue::generate(std::vector<std::string>& data, std::vector<std::string>& 
 			}
 			++check_sym_table;
 		}
+	}else if(this->version == 2){
+		dynamic_cast<Lvalue*>(this->grammars.at(0))->generate(data, bss, text);
 	}
 }
 
-
+void Test::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+		std::vector<std::string>& text, int type){
+	dynamic_cast<Expr*>(this->grammars.at(1))->generate(data, bss, text);
+	text.emplace_back("mov edx, eax");
+	dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+	text.emplace_back("cmp eax, edx");
+}
 
 
 
