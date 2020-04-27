@@ -12,5 +12,6 @@
 #include <iostream>
 
 void initHelpers(std::ostream& file);
+void initializeHeap(std::ostream& file);
 
 #endif /* STARTUP_H_ */

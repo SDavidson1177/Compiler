@@ -40,9 +40,6 @@ void Main::generate(std::vector<std::string>& data,
 	cur_sym_table.emplace_back(this->sym_table);
 
 	if (this->version == 0){
-		// data segment
-		data.emplace_back("one dd 1");
-
 		// load in integers into correct locations
 		// Set base stack pointer
 		text.emplace_back("mov rbx, rsp");

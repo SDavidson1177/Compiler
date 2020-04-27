@@ -50,10 +50,16 @@ int main(int argc, char* argv[]){
 
 		/* Start up */
 		initHelpers(out_file);
+		initializeHeap(out_file);
 
 		data_segment.emplace_back("section .data");
+		data_segment.emplace_back("heapsize equ 1000000");
 		bss_segment.emplace_back("section .bss");
 		text_segment.emplace_back("_start:");
+
+		/* Set up the heap */
+		text_segment.emplace_back("call initialize_heap");
+		text_segment.emplace_back("mov r11, rax");
 
 		proc.generate(data_segment, bss_segment, text_segment);
 
