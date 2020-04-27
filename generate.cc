@@ -15,7 +15,9 @@
  * R8/R9 - Used as additional registers for computing
  * 		arithmetic operations.
  *
- * R10 - Stores address of where to store data on the stack
+ * R10 - Stores address of where to store data on the stack/heap
+ *
+ * R11 - Stores the starting address of the heap
  */
 
 /* Global variables */
@@ -67,8 +69,10 @@ void Main::generate(std::vector<std::string>& data,
 		}
 
 		// Exit the program
-		text.emplace_back("mov eax, 1");
-		text.emplace_back("int 80h");
+		text.emplace_back("_exit:");
+		text.emplace_back("mov rdi, rax");
+		text.emplace_back("mov rax, 60");
+		text.emplace_back("syscall");
 	}else{
 		std::cerr << "Main function not yet implemented for (int, int*) arguments\n";
 	}
@@ -81,10 +85,13 @@ void Dcls::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 
 	// Get the current offset
 	dynamic_cast<Dcl*>(this->grammars.at(0))->generate(data, bss, text);
-	text.emplace_back("mov r10, rbx");
-	text.emplace_back("sub r10, " + std::to_string(CURRENT_OFFSET)); // go to the location in the stack
 	text.emplace_back("mov eax, " + this->value);
-	text.emplace_back("mov [r10], eax"); // store the value in memory
+
+	if (this->type == INT){
+		text.emplace_back("mov [r10], eax"); // store the value in memory
+	}else if(this->type == INT_STAR){
+		text.emplace_back("mov [r10], rax"); // store the value in memory
+	}
 
 }
 
@@ -103,6 +110,9 @@ void Dcl::generate(std::vector<std::string>& data, std::vector<std::string>& bss
 		}
 		++check_sym_table;
 	}
+
+	text.emplace_back("mov r10, rbx");
+	text.emplace_back("sub r10, " + std::to_string(CURRENT_OFFSET)); // go to the location in the stack
 }
 
 void Statement::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
@@ -110,11 +120,18 @@ void Statement::generate(std::vector<std::string>& data, std::vector<std::string
 	if (this->version == 0){
 		// set the current offset
 		dynamic_cast<Lvalue*>(this->grammars.at(0))->generate(data, bss, text);
-		dynamic_cast<Expr*>(this->grammars.at(1))->generate(data, bss, text);
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], r10");
+		Expr* expr = dynamic_cast<Expr*>(this->grammars.at(1));
+		expr->generate(data, bss, text);
+		text.emplace_back("mov r10, [rsp]");
+		text.emplace_back("add rsp, 8");
 
-		text.emplace_back("mov r10, rbx");
-		text.emplace_back("sub r10, " + std::to_string(CURRENT_OFFSET)); // go to the location in the stack
-		text.emplace_back("mov [r10], eax"); // store the value in memory
+		if (expr->getType() == INT){
+			text.emplace_back("mov [r10], eax"); // store the value in memory
+		}else if(expr->getType() == INT_STAR){
+			text.emplace_back("mov [r10], rax"); // store the value in memory
+		}
 	}else if(this->version == 1){ // if statement
 		Test* test = dynamic_cast<Test*>(this->grammars.at(0));
 		test->generate(data, bss, text);
@@ -156,6 +173,10 @@ void Statement::generate(std::vector<std::string>& data, std::vector<std::string
 		dynamic_cast<Body*>(this->grammars.at(1))->generate(data, bss, text);
 		text.emplace_back("jmp while_" + this->value);
 		text.emplace_back("while_end_" + this->value + ":");
+	}else if(this->version == 4){ // DELETE LBRACK RBRACK expr SEMI
+		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+		text.emplace_back("mov rdi, rax");
+		text.emplace_back("call free");
 	}
 }
 
@@ -165,13 +186,13 @@ void Expr::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
 		dynamic_cast<Term*>(this->grammars.at(1))->generate(data, bss, text);
-		text.emplace_back("mov r8d, eax");
+		text.emplace_back("mov r8, rax");
 		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
 
 		if(this->op == "+"){
-			text.emplace_back("add eax, r8d");
+			text.emplace_back("add rax, r8");
 		}else if(this->op == "-"){
-			text.emplace_back("sub eax, r8d");
+			text.emplace_back("sub rax, r8");
 		}
 		EXPR_TERM_DOUBLE = true;
 	}
@@ -184,15 +205,15 @@ void Term::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 		dynamic_cast<Factor*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
-		text.emplace_back("mov r8d, eax");
+		text.emplace_back("mov r8, rax");
 		dynamic_cast<Factor*>(this->grammars.at(1))->generate(data, bss, text);
-		text.emplace_back("mov r9d, eax");
-		text.emplace_back("mov eax, r8d");
+		text.emplace_back("mov r9, rax");
+		text.emplace_back("mov rax, r8");
 
 		if(this->op == "*"){
-			text.emplace_back("mul r9d");
+			text.emplace_back("mul r9");
 		}else if(this->op == "/"){
-			text.emplace_back("div r9d");
+			text.emplace_back("div r9");
 		}
 		EXPR_TERM_DOUBLE = true;
 	}
@@ -224,12 +245,24 @@ void Factor::generate(std::vector<std::string>& data,
 			text.emplace_back("sub r10, " + std::to_string(pos));
 		}
 		text.emplace_back("mov eax, [r10]");
-	}else if(this->version == 1){
+	}else if(this->version == 1){ // NUM
 		text.emplace_back("mov eax, " + this->value);
-	}else if(this->version == 2){
-		text.emplace_back("mov eax, 0");
-	}else if(this->version == 3){
+	}else if(this->version == 2){ // NULL
+		text.emplace_back("mov rax, 0");
+	}else if(this->version == 3){ // LPAREN expr RPAREN
 		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+	}else if(this->version == 4){ // AMP Lvalue
+		dynamic_cast<Lvalue*>(this->grammars.at(0))->generate(data, bss, text);
+		text.emplace_back("mov rax, r10");
+	}else if(this->version == 5){ //STAR factor
+		dynamic_cast<Factor*>(this->grammars.at(0))->generate(data, bss, text);
+		text.emplace_back("mov eax, [rax]");
+	}else if(this->version == 6){ // NEW INT LBRACK expr RBRACK
+		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+		text.emplace_back("mov rdi, 4");
+		text.emplace_back("mul rdi");
+		text.emplace_back("mov edi, eax");
+		text.emplace_back("call malloc");
 	}
 
 }
@@ -247,7 +280,12 @@ void Lvalue::generate(std::vector<std::string>& data, std::vector<std::string>& 
 			}
 			++check_sym_table;
 		}
-	}else if(this->version == 2){
+		text.emplace_back("mov r10, rbx");
+		text.emplace_back("sub r10, " + std::to_string(CURRENT_OFFSET)); // go to the location in the stack
+	}else if(this->version == 1){ // STAR factor
+		dynamic_cast<Factor*>(this->grammars.at(0))->generate(data, bss, text);
+		text.emplace_back("mov r10, [r10]");
+	}else if(this->version == 2){ // LPAREN lvalue RPAREN
 		dynamic_cast<Lvalue*>(this->grammars.at(0))->generate(data, bss, text);
 	}
 }

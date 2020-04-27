@@ -25,9 +25,9 @@ int main(int argc, char* argv[]){
 
 	if (argc < 2){
 		tokenize(cin, cout, global_tokens);
-//		for (auto it = global_tokens.begin(); it != global_tokens.end(); ++it){
-//			cout << "(" << it->first << ", " << it->second << ")\n";
-//		}
+		for (auto it = global_tokens.begin(); it != global_tokens.end(); ++it){
+			cout << "(" << it->first << ", " << it->second << ")\n";
+		}
 
 		Procedures proc;
 		auto tokens_it = global_tokens.begin();
@@ -53,7 +53,7 @@ int main(int argc, char* argv[]){
 		initializeHeap(out_file);
 
 		data_segment.emplace_back("section .data");
-		data_segment.emplace_back("heapsize equ 1000000");
+		data_segment.emplace_back("heapsize equ " + std::to_string(HEAP_SIZE));
 		bss_segment.emplace_back("section .bss");
 		text_segment.emplace_back("_start:");
 

@@ -211,7 +211,7 @@ bool Params::noParams(){
 err_code Procedure::parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
 	cur_sym_table.emplace_back(this->sym_table);
-	VAR_STACK_OFFSET = 0;
+	VAR_STACK_OFFSET = 4;
 
 	next(global_tokens, it, "INT");
 	this->name = next(global_tokens, it, "ID");
@@ -282,7 +282,7 @@ Main::~Main(){
 
 err_code Main::parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
-	VAR_STACK_OFFSET = 0;
+	VAR_STACK_OFFSET = 4;
 	STACK_MAX = &(this->stack_max);
 	cur_sym_table.emplace_back(this->sym_table);
 
@@ -475,11 +475,18 @@ err_code Dcl::parseTokens(std::vector<std::pair<std::string, std::string>>& glob
 	if((*inner_scope)->find(this->value) == (*inner_scope)->end()){
 		auto sym = Symbol(this->value);
 		sym.type = type->getType();
+
+		if (this->type == INT){
+			VAR_STACK_OFFSET -= SIZE_OF_INT;
+		}else if(this->type == INT_STAR){
+			VAR_STACK_OFFSET -= SIZE_OF_INT_STAR;
+		}
 		sym.offset = VAR_STACK_OFFSET;
-		VAR_STACK_OFFSET -= SIZE_OF_INT;
 
 		if(this->type == INT){
 			*STACK_MAX += SIZE_OF_INT;
+		}else if(this->type == INT_STAR){
+			*STACK_MAX += SIZE_OF_INT_STAR;
 		}
 
 		(*inner_scope)->emplace(std::make_pair(this->value, sym));
@@ -639,6 +646,10 @@ err_code Lvalue::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		this->grammars.emplace_back(factor);
 		factor->parseTokens(global_tokens, it);
 
+		if (factor->getType() != INT_STAR){
+			throw thrown_e(CONTEXT_ERROR, " Expected factor of type int* when dereferencing.");
+		}
+
 		this->type = INT;
 	}else if(it->second == "LPAREN"){
 		this->version = 2;
@@ -742,9 +753,14 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		this->grammars.emplace_back(factor);
 		factor->parseTokens(global_tokens, it);
 
+		if (factor->getType() != INT_STAR){
+			throw thrown_e(CONTEXT_ERROR, " Expected factor of type int* when dereferencing.");
+		}
+
 		this->type = INT;
 	}else if(it->second == "NEW"){
 		this->version = 6;
+		next(global_tokens, it, "NEW");
 		next(global_tokens, it, "INT");
 		next(global_tokens, it, "LBRACK");
 
@@ -1207,6 +1223,10 @@ err_code Statement::parseTokens(std::vector<std::pair<std::string, std::string>>
 		Expr* expr = new Expr();
 		this->grammars.emplace_back(expr);
 		expr->parseTokens(global_tokens, it);
+
+		if (expr->getType() != INT_STAR){
+			throw thrown_e(CONTEXT_ERROR, " Expected factor of type int* when dereferencing.");
+		}
 
 		next(global_tokens, it, "SEMI");
 

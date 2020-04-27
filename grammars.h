@@ -15,6 +15,7 @@
 #include "errorcodes.h"
 
 const int SIZE_OF_INT = 4;
+const int SIZE_OF_INT_STAR = 8;
 
 struct Symbol;
 

@@ -50,11 +50,14 @@ int startup(){
 	KEY_TOKENS.emplace("while", "WHILE");
 	KEY_TOKENS.emplace("int", "INT");
 	KEY_TOKENS.emplace("println", "PRINTLN");
+	KEY_TOKENS.emplace("delete", "DELETE");
 	KEY_TOKENS.emplace("return", "RETURN");
 	KEY_TOKENS.emplace("nullptr", "NULL");
 	KEY_TOKENS.emplace(";", "SEMI");
 	KEY_TOKENS.emplace("{", "LBRACE");
 	KEY_TOKENS.emplace("}", "RBRACE");
+	KEY_TOKENS.emplace("[", "LBRACK");
+	KEY_TOKENS.emplace("]", "RBRACK");
 	KEY_TOKENS.emplace("(", "LPAREN");
 	KEY_TOKENS.emplace(")", "RPAREN");
 	KEY_TOKENS.emplace("+", "PLUS");
@@ -74,9 +77,10 @@ int startup(){
 //	TOKEN_NEEDS_SPACE.emplace("if", "IF");
 	TOKEN_NEEDS_SPACE.emplace("elif", "ELIF");
 //	TOKEN_NEEDS_SPACE.emplace("else", "ELSE");
-	TOKEN_NEEDS_SPACE.emplace("while", "WHILE");
+//	TOKEN_NEEDS_SPACE.emplace("while", "WHILE");
 	TOKEN_NEEDS_SPACE.emplace("int", "INT");
 	TOKEN_NEEDS_SPACE.emplace("println", "PRINTLN");
+	TOKEN_NEEDS_SPACE.emplace("delete", "DELETE");
 
 
 	return OK;
