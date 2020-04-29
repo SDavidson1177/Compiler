@@ -21,5 +21,6 @@ const int HEAP_SIZE = 0x1000000;
 
 void initHelpers(std::ostream& file);
 void initializeHeap(std::ostream& file);
+void initializeIO(std::ostream& file);
 
 #endif /* STARTUP_H_ */

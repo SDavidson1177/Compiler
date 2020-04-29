@@ -180,6 +180,14 @@ free:
 	mov r8b, 2 ; store 2 in r9
 	sub rdi, 4 ; move back to get address of first 4 bytes
 
+	; Check if this memory address exists within the heap
+	cmp rdi, r11
+	jl free_return
+	mov rdx, r11
+	add rdx, heapsize
+	cmp rdi, rdx
+	jge free_return
+
 	; check if that memory was in use. if not
 	; don't do anything
 	mov eax, [rdi]

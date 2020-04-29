@@ -17,6 +17,7 @@ std::vector<std::map<std::string, Symbol>*> cur_sym_table;
 std::map<std::string, std::vector<Procedure*>> proc_map;
 int VAR_STACK_OFFSET = 0;
 int* STACK_MAX = nullptr;
+int* FIRST_DCL_SIZE = nullptr;
 long IF_COUNT = 0;
 long WHILE_COUNT = 0;
 
@@ -76,7 +77,7 @@ bool Lvalue::first(std::string check){
 
 bool Statement::first(std::string check){
 	if (check == "IF" || check == "WHILE" || check == "DELETE" ||
-			check == "PRINTLN"){
+			check == "EXPRESS"){
 		return true;
 	}
 	return Lvalue::first(check);
@@ -185,6 +186,9 @@ Procedure::Procedure(){
 	this->id = PROCEDURE;
 	this->value = "";
 	this->version = -1;
+	this->param_max = 0;
+	this->symbol_max = 0;
+	this->first_dcl_size = 0;
 }
 
 Procedure::~Procedure(){
@@ -211,6 +215,7 @@ bool Params::noParams(){
 err_code Procedure::parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
 	cur_sym_table.emplace_back(this->sym_table);
+	STACK_MAX = &(this->param_max);
 	VAR_STACK_OFFSET = 4;
 
 	next(global_tokens, it, "INT");
@@ -223,9 +228,16 @@ err_code Procedure::parseTokens(std::vector<std::pair<std::string, std::string>>
 
 	next(global_tokens, it, "RPAREN");
 	next(global_tokens, it, "LBRACE");
+
+	STACK_MAX = &(this->symbol_max);; // end count of the number of parameters
+	FIRST_DCL_SIZE = &(this->first_dcl_size);
+
 	Body* body = new Body();
 	this->grammars.emplace_back(body);
 	body->parseTokens(global_tokens, it);
+
+	FIRST_DCL_SIZE = nullptr;// offset of first symbol that is not a parameter
+	                         // used for setting rbx of this procedure
 
 	next(global_tokens, it, "RETURN");
 
@@ -235,6 +247,15 @@ err_code Procedure::parseTokens(std::vector<std::pair<std::string, std::string>>
 
 	next(global_tokens, it, "SEMI");
 	next(global_tokens, it, "RBRACE");
+
+	STACK_MAX = nullptr;
+
+	// Change the offset of each variable in the stack so that
+	// we can call this function properly
+
+	for (auto it = this->sym_table->begin(); it != this->sym_table->end(); ++it){
+		it->second.offset += this->param_max;
+	}
 
 	cur_sym_table.pop_back();
 
@@ -478,15 +499,23 @@ err_code Dcl::parseTokens(std::vector<std::pair<std::string, std::string>>& glob
 
 		if (this->type == INT){
 			VAR_STACK_OFFSET -= SIZE_OF_INT;
+			if(FIRST_DCL_SIZE != nullptr && *FIRST_DCL_SIZE == 0){
+				*FIRST_DCL_SIZE = SIZE_OF_INT;
+			}
 		}else if(this->type == INT_STAR){
 			VAR_STACK_OFFSET -= SIZE_OF_INT_STAR;
+			if(FIRST_DCL_SIZE != nullptr && *FIRST_DCL_SIZE == 0){
+				*FIRST_DCL_SIZE = SIZE_OF_INT_STAR;
+			}
 		}
 		sym.offset = VAR_STACK_OFFSET;
 
-		if(this->type == INT){
-			*STACK_MAX += SIZE_OF_INT;
-		}else if(this->type == INT_STAR){
-			*STACK_MAX += SIZE_OF_INT_STAR;
+		if (STACK_MAX != nullptr){
+			if(this->type == INT){
+				*STACK_MAX += SIZE_OF_INT;
+			}else if(this->type == INT_STAR){
+				*STACK_MAX += SIZE_OF_INT_STAR;
+			}
 		}
 
 		(*inner_scope)->emplace(std::make_pair(this->value, sym));
@@ -773,7 +802,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		this->type = INT_STAR;
 	}else if(it->second == "ID"){
 		this->version = 7;
-		std::string proc_name = next(global_tokens, it, "ID");
+		std::string proc_name = this->value = next(global_tokens, it, "ID");
 
 		auto procedure = proc_map.find(proc_name);
 
@@ -784,6 +813,8 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		next(global_tokens, it, "LPAREN");
 
 		if (it->second != "RPAREN"){
+			this->version = 8;
+
 			Arglist* arglist = new Arglist();
 			this->grammars.emplace_back(arglist);
 			arglist->parseTokens(global_tokens, it);
@@ -792,7 +823,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 			for (; it != procedure->second.end(); ++it){
 				if(dynamic_cast<Procedure*>(*it)->argumentMatch(arglist)){
-					break; // our arguments match. Every thing is OK
+					break; // our arguments match. Everything is OK
 				}
 			}
 
@@ -854,6 +885,7 @@ Expr::~Expr(){
 Expr& Expr::operator=(const Expr& other){
 	this->version = other.version;
 	this->value = other.value;
+	this->op = other.op;
 
 	this->grammars.clear();
 	for (auto it = other.grammars.begin(); it != other.grammars.end(); ++it){
@@ -956,6 +988,7 @@ Term::~Term(){
 Term& Term::operator=(const Term& other){
 	this->version = other.version;
 	this->value = other.value;
+	this->op = other.op;
 
 	this->grammars.clear();
 	for (auto it = other.grammars.begin(); it != other.grammars.end(); ++it){
@@ -1201,10 +1234,10 @@ err_code Statement::parseTokens(std::vector<std::pair<std::string, std::string>>
 
 		next(global_tokens, it, "RBRACE");
 
-	}else if(it->second == "PRINTLN"){
+	}else if(it->second == "EXPRESS"){
 		this->version = 3;
 
-		next(global_tokens, it, "PRINTLN");
+		next(global_tokens, it, "EXPRESS");
 		next(global_tokens, it, "LPAREN");
 
 		Expr* expr = new Expr();

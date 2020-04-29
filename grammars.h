@@ -95,6 +95,9 @@ class Procedure : public Grammar{
 	std::map<std::string, Symbol>* sym_table;
 public:
 	std::string name;
+	int param_max;
+	int symbol_max;
+	int first_dcl_size;
 
 	Procedure();
 	~Procedure();
@@ -104,6 +107,8 @@ public:
 	err_code parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 				std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+			std::vector<std::string>& text, int type = 0) override;
 };
 
 class Main : public Grammar{

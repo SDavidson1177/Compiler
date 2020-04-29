@@ -42,6 +42,8 @@ void Main::generate(std::vector<std::string>& data,
 	cur_sym_table.emplace_back(this->sym_table);
 
 	if (this->version == 0){
+		text.emplace_back("_start:");
+
 		// load in integers into correct locations
 		// Set base stack pointer
 		text.emplace_back("mov rbx, rsp");
@@ -49,18 +51,18 @@ void Main::generate(std::vector<std::string>& data,
 		text.emplace_back("sub rsp, " + std::to_string(this->stack_max));
 
 		// first int
-		text.emplace_back("mov r10, rbx");
-		text.emplace_back("add r10, 20");
-		text.emplace_back("mov r10, [r10]");
+		text.emplace_back("mov rdi, rbx");
+		text.emplace_back("add rdi, 20");
+		text.emplace_back("mov rdi, [rdi]");
 		text.emplace_back("call ascii_to_int");
 		text.emplace_back("mov [rbx], eax");
 
 		// second int
 		text.emplace_back("mov r9, rbx");
 		text.emplace_back("sub r9, " + std::to_string(SIZE_OF_INT));
-		text.emplace_back("mov r10, rbx");
-		text.emplace_back("add r10, 28");
-		text.emplace_back("mov r10, [r10]");
+		text.emplace_back("mov rdi, rbx");
+		text.emplace_back("add rdi, 28");
+		text.emplace_back("mov rdi, [rdi]");
 		text.emplace_back("call ascii_to_int");
 		text.emplace_back("mov [r9], eax");
 
@@ -78,6 +80,33 @@ void Main::generate(std::vector<std::string>& data,
 	}
 
 	cur_sym_table.pop_back();
+}
+
+void Procedure::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+		std::vector<std::string>& text, int type){
+
+	cur_sym_table.emplace_back(this->sym_table);
+
+	text.emplace_back("func_" + this->name + ":"); // function label
+
+	// Set the stack base pointer
+	text.emplace_back("mov rbx, rsp");
+	if (this->first_dcl_size != 0){
+		text.emplace_back("sub rbx, " + std::to_string(this->first_dcl_size));
+		text.emplace_back("sub rsp, " + std::to_string(this->symbol_max + this->param_max));
+	}
+
+	dynamic_cast<Body*>(this->grammars.at(1))->generate(data, bss, text);
+	dynamic_cast<Expr*>(this->grammars.at(2))->generate(data, bss, text);
+
+	if (this->first_dcl_size != 0){
+		text.emplace_back("add rsp, " + std::to_string(this->symbol_max + this->param_max));
+	}
+
+	text.emplace_back("ret");
+
+	cur_sym_table.pop_back();
+
 }
 
 void Dcls::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
@@ -173,6 +202,10 @@ void Statement::generate(std::vector<std::string>& data, std::vector<std::string
 		dynamic_cast<Body*>(this->grammars.at(1))->generate(data, bss, text);
 		text.emplace_back("jmp while_" + this->value);
 		text.emplace_back("while_end_" + this->value + ":");
+	}else if(this->version == 3){
+		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+		text.emplace_back("mov rdi, rax");
+		text.emplace_back("call express");
 	}else if(this->version == 4){ // DELETE LBRACK RBRACK expr SEMI
 		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
 		text.emplace_back("mov rdi, rax");
@@ -185,16 +218,16 @@ void Expr::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 	if (this->grammars.size() == 1){
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
-		dynamic_cast<Term*>(this->grammars.at(1))->generate(data, bss, text);
-		text.emplace_back("mov r8, rax");
 		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+		text.emplace_back("mov r8, rax");
+		dynamic_cast<Term*>(this->grammars.at(1))->generate(data, bss, text);
 
 		if(this->op == "+"){
 			text.emplace_back("add rax, r8");
 		}else if(this->op == "-"){
-			text.emplace_back("sub rax, r8");
+			text.emplace_back("sub r8, rax");
+			text.emplace_back("mov rax, r8");
 		}
-		EXPR_TERM_DOUBLE = true;
 	}
 
 }
@@ -205,17 +238,21 @@ void Term::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 		dynamic_cast<Factor*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
-		text.emplace_back("mov r8, rax");
+		text.emplace_back("mov r8d, eax");
 		dynamic_cast<Factor*>(this->grammars.at(1))->generate(data, bss, text);
-		text.emplace_back("mov r9, rax");
-		text.emplace_back("mov rax, r8");
+		text.emplace_back("mov r9d, eax");
+		text.emplace_back("mov eax, r8d");
 
 		if(this->op == "*"){
-			text.emplace_back("mul r9");
+			text.emplace_back("mul r9d");
 		}else if(this->op == "/"){
-			text.emplace_back("div r9");
+			text.emplace_back("mov edx, 0"); // clear for division
+			text.emplace_back("div r9d");
+		}else if(this->op == "%"){
+			text.emplace_back("mov edx, 0"); // clear for division
+			text.emplace_back("div r9d");
+			text.emplace_back("mov eax, edx"); // place remainder in eax
 		}
-		EXPR_TERM_DOUBLE = true;
 	}
 }
 
@@ -244,7 +281,11 @@ void Factor::generate(std::vector<std::string>& data,
 
 			text.emplace_back("sub r10, " + std::to_string(pos));
 		}
-		text.emplace_back("mov eax, [r10]");
+		if (this->type == INT){
+			text.emplace_back("mov eax, [r10]");
+		}else if(this->type == INT_STAR){
+			text.emplace_back("mov rax, [r10]");
+		}
 	}else if(this->version == 1){ // NUM
 		text.emplace_back("mov eax, " + this->value);
 	}else if(this->version == 2){ // NULL
@@ -263,6 +304,42 @@ void Factor::generate(std::vector<std::string>& data,
 		text.emplace_back("mul rdi");
 		text.emplace_back("mov edi, eax");
 		text.emplace_back("call malloc");
+	}else if(this->version == 7){ // ID LPAREN RPAREN
+		// Save our registers
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], rbx");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], rcx");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], rdx");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], r8");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], r9");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], r10");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], rdi");
+
+		// No arguments to place on the stack
+		// Directly call the function
+		text.emplace_back("call func_" + this->value);
+
+		// Load our registers
+		text.emplace_back("mov rdi, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov r10, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov r9, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov r8, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov rdx, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov rcx, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov rbx, [rsp]");
+		text.emplace_back("add rsp, 8");
 	}
 
 }

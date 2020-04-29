@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++14 -Wall -Werror -g -MMD
 EXEC = lang
-OBJECTS = start.o tokens.o parser.o grammars.o symbol.o generate.o startup.o
+OBJECTS = start.o tokens.o grammars.o symbol.o generate.o startup.o
 DEPENDS = ${OBJECTS:.o=.d}
 
 ${EXEC}: ${OBJECTS}

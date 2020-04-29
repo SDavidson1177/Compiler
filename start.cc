@@ -21,13 +21,18 @@ vector<string> text_segment;
 
 
 int main(int argc, char* argv[]){
+	// Initialize vectors for tokens
 	startup();
 
 	if (argc < 2){
+		/* TOKENIZER */
+
 		tokenize(cin, cout, global_tokens);
-		for (auto it = global_tokens.begin(); it != global_tokens.end(); ++it){
-			cout << "(" << it->first << ", " << it->second << ")\n";
-		}
+//		for (auto it = global_tokens.begin(); it != global_tokens.end(); ++it){
+//			cout << "(" << it->first << ", " << it->second << ")\n";
+//		}
+
+		/* PARSER */
 
 		Procedures proc;
 		auto tokens_it = global_tokens.begin();
@@ -48,20 +53,26 @@ int main(int argc, char* argv[]){
 		out_file << "section .text\n";
 		out_file << "global _start\n";
 
+		/* CODE GENERATION */
+
 		/* Start up */
 		initHelpers(out_file);
-		initializeHeap(out_file);
 
 		data_segment.emplace_back("section .data");
 		data_segment.emplace_back("heapsize equ " + std::to_string(HEAP_SIZE));
+		data_segment.emplace_back("sys_write equ 1");
 		bss_segment.emplace_back("section .bss");
-		text_segment.emplace_back("_start:");
 
 		/* Set up the heap */
+
 		text_segment.emplace_back("call initialize_heap");
 		text_segment.emplace_back("mov r11, rax");
 
+		/* Generate code starting at the first procedure */
+
 		proc.generate(data_segment, bss_segment, text_segment);
+
+		/* Output code to the file */
 
 		bool section_start = true;
 		for (auto& it : text_segment){
