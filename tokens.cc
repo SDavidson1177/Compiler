@@ -74,14 +74,12 @@ int startup(){
 	KEY_TOKENS.emplace("%", "PCT");
 
 	/* Initialize TOKEN_NEEDS_SPACE */
-//	TOKEN_NEEDS_SPACE.emplace("if", "IF");
-	TOKEN_NEEDS_SPACE.emplace("elif", "ELIF");
-//	TOKEN_NEEDS_SPACE.emplace("else", "ELSE");
-//	TOKEN_NEEDS_SPACE.emplace("while", "WHILE");
 	TOKEN_NEEDS_SPACE.emplace("int", "INT");
-//	TOKEN_NEEDS_SPACE.emplace("println", "PRINTLN");
 	TOKEN_NEEDS_SPACE.emplace("delete", "DELETE");
-
+	TOKEN_NEEDS_SPACE.emplace("new", "NEW");
+	TOKEN_NEEDS_SPACE.emplace("return", "RETURN");
+	TOKEN_NEEDS_SPACE.emplace("express", "EXPRESS");
+	TOKEN_NEEDS_SPACE.emplace("nullptr", "NULL");
 
 	return OK;
 }

@@ -232,6 +232,18 @@ err_code Procedure::parseTokens(std::vector<std::pair<std::string, std::string>>
 	STACK_MAX = &(this->symbol_max);; // end count of the number of parameters
 	FIRST_DCL_SIZE = &(this->first_dcl_size);
 
+	// Add this procedure to the global map of procedures
+	auto map_location = proc_map.find(this->name);
+	if (map_location == proc_map.end()){
+		std::vector<Procedure*> proc_vector;
+		proc_vector.emplace_back(this);
+
+		proc_map.emplace(std::make_pair(this->name, proc_vector));
+	}else{
+		map_location->second.emplace_back(this);
+	}
+
+
 	Body* body = new Body();
 	this->grammars.emplace_back(body);
 	body->parseTokens(global_tokens, it);
@@ -258,17 +270,6 @@ err_code Procedure::parseTokens(std::vector<std::pair<std::string, std::string>>
 	}
 
 	cur_sym_table.pop_back();
-
-	// Add this procedure to the global map of procedures
-	auto map_location = proc_map.find(this->name);
-	if (map_location == proc_map.end()){
-		std::vector<Procedure*> proc_vector;
-		proc_vector.emplace_back(this);
-
-		proc_map.emplace(std::make_pair(this->name, proc_vector));
-	}else{
-		map_location->second.emplace_back(this);
-	}
 
 	return OK;
 }

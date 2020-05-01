@@ -266,6 +266,8 @@ public:
 			std::vector<std::pair<std::string, std::string>>::iterator& it, int version = 0) override;
 	void print(std::ostream& out, std::string prefix) override;
 //	static bool first(std::string check);
+	void generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+				std::vector<std::string>& text, int type = 0) override;
 };
 
 class Test : public Grammar{

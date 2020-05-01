@@ -18,12 +18,15 @@
  * R10 - Stores address of where to store data on the stack/heap
  *
  * R11 - Stores the starting address of the heap
+ *
+ * R12 - Stores the address pf the Lvalues
  */
 
 /* Global variables */
 
 int CURRENT_OFFSET = 0;
 bool EXPR_TERM_DOUBLE = false;
+int ARG_OFFSET = 0;
 
 void Grammar::generate(std::vector<std::string>& data,
 		std::vector<std::string>& bss,
@@ -43,6 +46,11 @@ void Main::generate(std::vector<std::string>& data,
 
 	if (this->version == 0){
 		text.emplace_back("_start:");
+
+		/* Set up the heap */
+
+		text.emplace_back("call initialize_heap");
+		text.emplace_back("mov r11, rax");
 
 		// load in integers into correct locations
 		// Set base stack pointer
@@ -90,10 +98,11 @@ void Procedure::generate(std::vector<std::string>& data, std::vector<std::string
 	text.emplace_back("func_" + this->name + ":"); // function label
 
 	// Set the stack base pointer
+	text.emplace_back("sub rsp, " + std::to_string(this->param_max));
 	text.emplace_back("mov rbx, rsp");
 	if (this->first_dcl_size != 0){
 		text.emplace_back("sub rbx, " + std::to_string(this->first_dcl_size));
-		text.emplace_back("sub rsp, " + std::to_string(this->symbol_max + this->param_max));
+		text.emplace_back("sub rsp, " + std::to_string(this->symbol_max));
 	}
 
 	dynamic_cast<Body*>(this->grammars.at(1))->generate(data, bss, text);
@@ -149,12 +158,10 @@ void Statement::generate(std::vector<std::string>& data, std::vector<std::string
 	if (this->version == 0){
 		// set the current offset
 		dynamic_cast<Lvalue*>(this->grammars.at(0))->generate(data, bss, text);
-		text.emplace_back("sub rsp, 8");
-		text.emplace_back("mov [rsp], r10");
+		text.emplace_back("mov r12, r10");
 		Expr* expr = dynamic_cast<Expr*>(this->grammars.at(1));
 		expr->generate(data, bss, text);
-		text.emplace_back("mov r10, [rsp]");
-		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov r10, r12");
 
 		if (expr->getType() == INT){
 			text.emplace_back("mov [r10], eax"); // store the value in memory
@@ -219,8 +226,11 @@ void Expr::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
 		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
-		text.emplace_back("mov r8, rax");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], rax");
 		dynamic_cast<Term*>(this->grammars.at(1))->generate(data, bss, text);
+		text.emplace_back("mov r8, [rsp]");
+		text.emplace_back("add rsp, 8");
 
 		if(this->op == "+"){
 			text.emplace_back("add rax, r8");
@@ -238,10 +248,12 @@ void Term::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 		dynamic_cast<Factor*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
-		text.emplace_back("mov r8d, eax");
+		text.emplace_back("sub rsp, 4");
+		text.emplace_back("mov [rsp], eax");
 		dynamic_cast<Factor*>(this->grammars.at(1))->generate(data, bss, text);
 		text.emplace_back("mov r9d, eax");
-		text.emplace_back("mov eax, r8d");
+		text.emplace_back("mov r8d, [rsp]");
+		text.emplace_back("add rsp, 4");
 
 		if(this->op == "*"){
 			text.emplace_back("mul r9d");
@@ -304,7 +316,15 @@ void Factor::generate(std::vector<std::string>& data,
 		text.emplace_back("mul rdi");
 		text.emplace_back("mov edi, eax");
 		text.emplace_back("call malloc");
-	}else if(this->version == 7){ // ID LPAREN RPAREN
+	}else if(this->version == 7 || this->version == 8){ // ID LPAREN RPAREN || ID LPAREN arglist RPAREN
+
+		if (this->version == 8){
+			// Place the arguments onto the stack
+			ARG_OFFSET = 72; // bytes we need to offset when pushing
+							 // arguments onto stack. (leave space for return address)
+			dynamic_cast<Arglist*>(this->grammars.at(0))->generate(data, bss, text);
+		}
+
 		// Save our registers
 		text.emplace_back("sub rsp, 8");
 		text.emplace_back("mov [rsp], rbx");
@@ -320,12 +340,15 @@ void Factor::generate(std::vector<std::string>& data,
 		text.emplace_back("mov [rsp], r10");
 		text.emplace_back("sub rsp, 8");
 		text.emplace_back("mov [rsp], rdi");
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov [rsp], r12");
 
-		// No arguments to place on the stack
 		// Directly call the function
 		text.emplace_back("call func_" + this->value);
 
 		// Load our registers
+		text.emplace_back("mov r12, [rsp]");
+		text.emplace_back("add rsp, 8");
 		text.emplace_back("mov rdi, [rsp]");
 		text.emplace_back("add rsp, 8");
 		text.emplace_back("mov r10, [rsp]");
@@ -340,6 +363,29 @@ void Factor::generate(std::vector<std::string>& data,
 		text.emplace_back("add rsp, 8");
 		text.emplace_back("mov rbx, [rsp]");
 		text.emplace_back("add rsp, 8");
+	}
+
+}
+
+void Arglist::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
+		std::vector<std::string>& text, int type){
+	Expr* expr = dynamic_cast<Expr*>(this->grammars.at(0));
+	expr->generate(data, bss, text);
+
+	if (expr->getType() == INT){
+		ARG_OFFSET += SIZE_OF_INT;
+		text.emplace_back("sub rsp, " + std::to_string(ARG_OFFSET));
+		text.emplace_back("mov [rsp], eax");
+		text.emplace_back("add rsp, " + std::to_string(ARG_OFFSET));
+	}else if(expr->getType() == INT_STAR){
+		ARG_OFFSET += SIZE_OF_INT_STAR;
+		text.emplace_back("sub rsp, " + std::to_string(ARG_OFFSET));
+		text.emplace_back("mov [rsp], rax");
+		text.emplace_back("add rsp, " + std::to_string(ARG_OFFSET));
+	}
+
+	if(this->grammars.size() == 2){ // expr COMMA arglist
+		dynamic_cast<Arglist*>(this->grammars.at(1))->generate(data, bss, text);
 	}
 
 }

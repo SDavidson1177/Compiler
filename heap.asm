@@ -10,6 +10,8 @@ initialize_heap:
 	; Store used registers
 	sub rsp, 8
 	mov [rsp], rdi
+	sub rsp, 8
+	mov [rsp], r11
 
 	; error checks
 	mov rdi, heapsize
@@ -52,6 +54,8 @@ initialize_heap:
 	add rsp, 8
 
 	; restore register
+	mov r11, [rsp]
+	add rsp, 8
 	mov rdi, [rsp]
 	add rsp, 8
 	ret

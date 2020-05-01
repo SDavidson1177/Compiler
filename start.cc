@@ -63,11 +63,6 @@ int main(int argc, char* argv[]){
 		data_segment.emplace_back("sys_write equ 1");
 		bss_segment.emplace_back("section .bss");
 
-		/* Set up the heap */
-
-		text_segment.emplace_back("call initialize_heap");
-		text_segment.emplace_back("mov r11, rax");
-
 		/* Generate code starting at the first procedure */
 
 		proc.generate(data_segment, bss_segment, text_segment);
