@@ -83,6 +83,7 @@ malloc:
 	sub rsp, 8
 	mov [rsp], rdx
 
+	mov r8, 0
 	mov r8b, 2 ; store 2 in r9
 
 
@@ -93,7 +94,8 @@ malloc_main_loop:
 	mov eax, [rcx] ; get size of memory segment
 	
 	; check if this slot is taken
-	div r8
+	mov edx, 0
+	div r8d
 	cmp edx, 0
 	je malloc_check_size ; check if it fits
 
@@ -124,7 +126,8 @@ malloc_check_size:
 
 malloc_found_slot:
 	add eax, 4
-	div r8
+	mov edx, 0
+	div r8d
 	sub eax, 4
 	cmp eax, edi
 	jl malloc_finish ; this slot is fine. reserve it
@@ -181,6 +184,7 @@ free:
 	sub rsp, 8
 	mov [rsp], r10
 
+	mov r8, 0
 	mov r8b, 2 ; store 2 in r9
 	sub rdi, 4 ; move back to get address of first 4 bytes
 
@@ -195,7 +199,8 @@ free:
 	; check if that memory was in use. if not
 	; don't do anything
 	mov eax, [rdi]
-	div r8
+	mov edx, 0
+	div r8d
 	cmp edx, 0
 	je free_return ; We don't have memory to free here
 
@@ -227,13 +232,15 @@ free_consolidate:
 	mov rax, 0
 	mov rax, rcx
 	sub rax, r11
-	div r10
+	mov edx, 0
+	div r10d
 	mov r9d, eax ; first modulus
 
 	mov rax, 0
 	mov rax, rdi
 	sub rax, r11
-	div r10 ; second modulus in eax
+	mov edx, 0
+	div r10d ; second modulus in eax
 
 	cmp eax, r9d ; check if they are buddies
 	jne free_check_lower_prep ; check lower address
@@ -246,7 +253,8 @@ free_consolidate:
 free_check_lower_prep:
 
 	mov eax, r10d
-	div r8
+	mov edx, 0
+	div r8d
 	mov r10d, eax
 free_check_lower:
 	mov rcx, rdi
@@ -270,13 +278,15 @@ free_check_lower:
 	mov rax, 0
 	mov rax, rcx
 	sub rax, r11
-	div r10
+	mov edx, 0
+	div r10d
 	mov r9d, eax ; first modulus
 
 	mov rax, 0
 	mov rax, rdi
 	sub rax, r11
-	div r10 ; second modulus in eax
+	mov edx, 0
+	div r10d ; second modulus in eax
 
 	cmp eax, r9d ; check if they are buddies
 	jne free_return ; They are not buddies. Do not consolidate

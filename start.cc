@@ -15,12 +15,9 @@
 using namespace std;
 
 vector<pair<string, string>> global_tokens;
-vector<string> data_segment;
-vector<string> bss_segment;
-vector<string> text_segment;
-
 
 int main(int argc, char* argv[]){
+
 	// Initialize vectors for tokens
 	startup();
 
@@ -54,6 +51,9 @@ int main(int argc, char* argv[]){
 		out_file << "global _start\n";
 
 		/* CODE GENERATION */
+		vector<string> data_segment;
+		vector<string> bss_segment;
+		AsmBuffer text_segment = AsmBuffer(out_file);
 
 		/* Start up */
 		initHelpers(out_file);

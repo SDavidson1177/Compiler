@@ -649,7 +649,9 @@ Lvalue::~Lvalue(){
 err_code Lvalue::parseTokens(std::vector<std::pair<std::string, std::string>>& global_tokens,
 		std::vector<std::pair<std::string, std::string>>::iterator& it, int version){
 
-	if(it->second == "ID"){
+	auto lookahead = update_lookahead(it, global_tokens.end());
+
+	if(it->second == "ID" && lookahead->second != "LBRACK"){
 		std::string var = this->value = next(global_tokens, it, "ID");
 
 		auto check_sym_table = cur_sym_table.rbegin();
@@ -692,6 +694,39 @@ err_code Lvalue::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		next(global_tokens, it, "RPAREN");
 
 		this->type = lvalue->getType();
+	}else if(it->second == "ID"){
+		this->version = 3;
+		std::string var = this->value = next(global_tokens, it, "ID");
+
+		// Check if this variable is defined
+
+		auto check_sym_table = cur_sym_table.rbegin();
+		while (check_sym_table != cur_sym_table.rend()){
+				auto sym = (*check_sym_table)->find(var);
+				if(sym != (*check_sym_table)->end()){
+					this->type = sym->second.type;
+					break;
+				}
+				++check_sym_table;
+		}
+
+		if(check_sym_table == cur_sym_table.rend()){
+			throw thrown_e(CONTEXT_ERROR, " Variable " + var + " not yet defined.");
+		}else if(this->type != INT_STAR){
+			throw thrown_e(CONTEXT_ERROR, " Variable " + var + " is not a pointer. Cannot use brackets for addressing.");
+		}
+
+		this->type = INT;
+
+		next(global_tokens, it, "LBRACK");
+
+		Expr* expr = new Expr();
+		this->grammars.emplace_back(expr);
+		expr->parseTokens(global_tokens, it);
+
+		next(global_tokens, it, "RBRACK");
+
+
 	}else{
 		throw thrown_e(PARSE_ERROR, " Expected an ID, Star or left parenthesis. Lvalue error.");
 	}
@@ -728,7 +763,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 	auto lookahead = update_lookahead(it, global_tokens.end());
 
-	if(it->second == "ID" && lookahead->second != "LPAREN"){
+	if(it->second == "ID" && lookahead->second != "LPAREN" && lookahead->second != "LBRACK"){
 		std::string var = this->value = next(global_tokens, it, "ID");
 
 		auto check_sym_table = cur_sym_table.rbegin();
@@ -743,7 +778,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 
 		if(check_sym_table == cur_sym_table.rend()){
 			if (proc_map.find(var) == proc_map.end()){
-				throw thrown_e(CONTEXT_ERROR, " Variable " + var + " not yet declared.");
+				throw thrown_e(CONTEXT_ERROR, " Variable " + var + " not yet defined.");
 			}
 		}
 
@@ -801,7 +836,7 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		next(global_tokens, it, "RBRACK");
 
 		this->type = INT_STAR;
-	}else if(it->second == "ID"){
+	}else if(it->second == "ID" && lookahead->second != "LBRACK"){
 		this->version = 7;
 		std::string proc_name = this->value = next(global_tokens, it, "ID");
 
@@ -849,6 +884,38 @@ err_code Factor::parseTokens(std::vector<std::pair<std::string, std::string>>& g
 		next(global_tokens, it, "RPAREN");
 
 		this->type = INT;
+	}else if(it->second == "ID"){ // ID LBRACK expr RBRACK
+		this->version = 9;
+		std::string var = this->value = next(global_tokens, it, "ID");
+
+		// Check if this variable is defined
+
+		auto check_sym_table = cur_sym_table.rbegin();
+		while (check_sym_table != cur_sym_table.rend()){
+				auto sym = (*check_sym_table)->find(var);
+				if(sym != (*check_sym_table)->end()){
+					this->type = sym->second.type;
+					break;
+				}
+				++check_sym_table;
+		}
+
+		if(check_sym_table == cur_sym_table.rend()){
+			throw thrown_e(CONTEXT_ERROR, " Variable " + var + " not yet defined.");
+		}else if(this->type != INT_STAR){
+			throw thrown_e(CONTEXT_ERROR, " Variable " + var + " is not a pointer. Cannot use brackets for addressing.");
+		}
+
+		this->type = INT;
+
+		next(global_tokens, it, "LBRACK");
+
+		Expr* expr = new Expr();
+		this->grammars.emplace_back(expr);
+		expr->parseTokens(global_tokens, it);
+
+		next(global_tokens, it, "RBRACK");
+
 	}else{
 		throw thrown_e(PARSE_ERROR, " Unexpected token " + it->second + " . Factor error.");
 	}

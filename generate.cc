@@ -19,7 +19,7 @@
  *
  * R11 - Stores the starting address of the heap
  *
- * R12 - Stores the address pf the Lvalues
+ * R12 - Stores the address of the Lvalues
  */
 
 /* Global variables */
@@ -30,7 +30,7 @@ int ARG_OFFSET = 0;
 
 void Grammar::generate(std::vector<std::string>& data,
 		std::vector<std::string>& bss,
-		std::vector<std::string>& text, int type){
+		AsmBuffer& text, int type){
 
 	// Call generate on all child grammars
 	for(auto& it : this->grammars){
@@ -40,7 +40,7 @@ void Grammar::generate(std::vector<std::string>& data,
 
 void Main::generate(std::vector<std::string>& data,
 		std::vector<std::string>& bss,
-		std::vector<std::string>& text, int type){
+		AsmBuffer& text, int type){
 
 	cur_sym_table.emplace_back(this->sym_table);
 
@@ -91,7 +91,7 @@ void Main::generate(std::vector<std::string>& data,
 }
 
 void Procedure::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-		std::vector<std::string>& text, int type){
+		AsmBuffer& text, int type){
 
 	cur_sym_table.emplace_back(this->sym_table);
 
@@ -119,7 +119,7 @@ void Procedure::generate(std::vector<std::string>& data, std::vector<std::string
 }
 
 void Dcls::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-				std::vector<std::string>& text, int type){
+				AsmBuffer& text, int type){
 
 	// Get the current offset
 	dynamic_cast<Dcl*>(this->grammars.at(0))->generate(data, bss, text);
@@ -134,7 +134,7 @@ void Dcls::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 }
 
 void Dcl::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-				std::vector<std::string>& text, int type){
+				AsmBuffer& text, int type){
 
 	// Get the current offset
 
@@ -154,7 +154,7 @@ void Dcl::generate(std::vector<std::string>& data, std::vector<std::string>& bss
 }
 
 void Statement::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-				std::vector<std::string>& text, int type){
+				AsmBuffer& text, int type){
 	if (this->version == 0){
 		// set the current offset
 		dynamic_cast<Lvalue*>(this->grammars.at(0))->generate(data, bss, text);
@@ -221,7 +221,7 @@ void Statement::generate(std::vector<std::string>& data, std::vector<std::string
 }
 
 void Expr::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-					std::vector<std::string>& text, int type){
+					AsmBuffer& text, int type){
 	if (this->grammars.size() == 1){
 		dynamic_cast<Term*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
@@ -243,7 +243,7 @@ void Expr::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 }
 
 void Term::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-					std::vector<std::string>& text, int type){
+					AsmBuffer& text, int type){
 	if (this->grammars.size() == 1){
 		dynamic_cast<Factor*>(this->grammars.at(0))->generate(data, bss, text);
 	}else{
@@ -252,7 +252,7 @@ void Term::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 		text.emplace_back("mov [rsp], eax");
 		dynamic_cast<Factor*>(this->grammars.at(1))->generate(data, bss, text);
 		text.emplace_back("mov r9d, eax");
-		text.emplace_back("mov r8d, [rsp]");
+		text.emplace_back("mov eax, [rsp]");
 		text.emplace_back("add rsp, 4");
 
 		if(this->op == "*"){
@@ -270,7 +270,7 @@ void Term::generate(std::vector<std::string>& data, std::vector<std::string>& bs
 
 void Factor::generate(std::vector<std::string>& data,
 		std::vector<std::string>& bss,
-		std::vector<std::string>& text, int type){
+		AsmBuffer& text, int type){
 
 	if (this->version == 0){ // ID
 
@@ -363,12 +363,47 @@ void Factor::generate(std::vector<std::string>& data,
 		text.emplace_back("add rsp, 8");
 		text.emplace_back("mov rbx, [rsp]");
 		text.emplace_back("add rsp, 8");
+	}else if(this->version == 9){ // ID LBRACK expr RBRACK
+		auto check_sym_table = cur_sym_table.rbegin();
+		int offset = 0;
+
+		while (check_sym_table != cur_sym_table.rend()){
+				auto sym = (*check_sym_table)->find(this->value);
+				if(sym != (*check_sym_table)->end()){
+					offset = sym->second.offset;
+					break;
+				}
+				++check_sym_table;
+		}
+
+		// Load variable onto stack
+		text.emplace_back("mov r10, rbx");
+		if(offset != 0){
+			int pos = offset * -1;
+
+			text.emplace_back("sub r10, " + std::to_string(pos));
+		}
+
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov rax, [r10]");
+		text.emplace_back("mov [rsp], rax");
+
+		// Get value of expression
+		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+
+		// retrieve the value
+		text.emplace_back("mov r10, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov ecx, " + std::to_string(SIZE_OF_INT));
+		text.emplace_back("mul ecx");
+		text.emplace_back("add r10d, eax");
+		text.emplace_back("mov eax, [r10]");
 	}
 
 }
 
 void Arglist::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-		std::vector<std::string>& text, int type){
+		AsmBuffer& text, int type){
 	Expr* expr = dynamic_cast<Expr*>(this->grammars.at(0));
 	expr->generate(data, bss, text);
 
@@ -391,7 +426,7 @@ void Arglist::generate(std::vector<std::string>& data, std::vector<std::string>&
 }
 
 void Lvalue::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-			std::vector<std::string>& text, int type){
+			AsmBuffer& text, int type){
 	if (this->version == 0){
 		auto check_sym_table = cur_sym_table.rbegin();
 		while (check_sym_table != cur_sym_table.rend()){
@@ -410,11 +445,45 @@ void Lvalue::generate(std::vector<std::string>& data, std::vector<std::string>& 
 		text.emplace_back("mov r10, [r10]");
 	}else if(this->version == 2){ // LPAREN lvalue RPAREN
 		dynamic_cast<Lvalue*>(this->grammars.at(0))->generate(data, bss, text);
+	}else if(this->version == 3){
+		auto check_sym_table = cur_sym_table.rbegin();
+		int offset = 0;
+
+		while (check_sym_table != cur_sym_table.rend()){
+				auto sym = (*check_sym_table)->find(this->value);
+				if(sym != (*check_sym_table)->end()){
+					offset = sym->second.offset;
+					break;
+				}
+				++check_sym_table;
+		}
+
+		// Load variable onto stack
+		text.emplace_back("mov r10, rbx");
+		if(offset != 0){
+			int pos = offset * -1;
+
+			text.emplace_back("sub r10, " + std::to_string(pos));
+		}
+
+		text.emplace_back("sub rsp, 8");
+		text.emplace_back("mov rax, [r10]");
+		text.emplace_back("mov [rsp], rax");
+
+		// Get value of expression
+		dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
+
+		// retrieve the value
+		text.emplace_back("mov r10, [rsp]");
+		text.emplace_back("add rsp, 8");
+		text.emplace_back("mov ecx, " + std::to_string(SIZE_OF_INT));
+		text.emplace_back("mul ecx");
+		text.emplace_back("add r10d, eax");
 	}
 }
 
 void Test::generate(std::vector<std::string>& data, std::vector<std::string>& bss,
-		std::vector<std::string>& text, int type){
+		AsmBuffer& text, int type){
 	dynamic_cast<Expr*>(this->grammars.at(1))->generate(data, bss, text);
 	text.emplace_back("mov edx, eax");
 	dynamic_cast<Expr*>(this->grammars.at(0))->generate(data, bss, text);
