@@ -113,7 +113,8 @@ You can define other functions besides **main**. These functions must be defined
 
 ```c++
 int fib(int x){
-  int result = x;
+  int result = 0;
+  result = x;
   
   if (x > 1){
     result = fib(x - 1) + fib(x - 2);
